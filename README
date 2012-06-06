@@ -1,0 +1,6 @@
+ArduMon - програмно-аппаратный комплекс для мониторинга и управления
+
+Аппаратная часть:
+
+1. Arduino UNO
+2. SIM900 GSM/GPRS shield for Arduino - IComSat v1.1

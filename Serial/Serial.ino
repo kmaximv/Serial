@@ -269,3 +269,34 @@ void FadeSwitch (int pin, int x, int y, bool z)
     }   
   }  
 }
+
+
+
+/* Вычисляем CRC для первых трёх байт буфера */
+// uint8_t crc = crc8_ccitt_block(packet, sizeof(packet) - 1);
+
+/* Вспомогательная функция вычисления CRC для массива байтов */
+uint8_t crc8_ccitt_block(const uint8_t *data, size_t length)
+{
+ uint8_t crc = 0;
+
+ for (size_t i = 0; i < length; ++i)
+    crc = crc8_ccitt(crc, data[i]);
+
+ return crc;
+}
+
+uint8_t crc8_ccitt(uint8_t crc, uint8_t data)
+{
+ return crc8(crc, data, 0x07);
+}
+
+uint8_t crc8(uint8_t crc, uint8_t data, uint8_t polynomial)
+{
+ crc ^= data;
+
+ for (int i = 0; i < 8; ++i)
+    crc = (crc << 1) ^ ((crc & 0x80) ? polynomial : 0);
+
+ return crc;
+}

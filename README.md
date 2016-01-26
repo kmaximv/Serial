@@ -61,3 +61,23 @@ UNO -> Pro Mini
 - 1(TX) -> RXI
 - RST - | Перемычка 
 - GND - |
+
+
+## Команды управления по Serial
+
+####Digital Pins
+
+```bash
+<bspm>7outd&12<espm>		//pinMode(12, OUTPUT);
+<bspm>6ind&12<espm>			//pinMode(12, INPUT);
+<bspm>8readd&12<espm>		//digitalRead(12);
+<bspm>5on&12<espm>			//digitalWrite(12, HIGH);
+<bspm>6off&12<espm>			//digitalWrite(12, LOW);
+<bspm>9pw&12&60<espm>		//analogWrite(12, 60);    (PWM)
+```
+
+####Analog Pins
+
+```bash
+<bspm>8reada&12<espm>		//analogRead(12);
+```

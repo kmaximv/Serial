@@ -10,6 +10,7 @@
 [![ArduinoISP](/screenshots/ArduinoISP.png)](/screenshots/ArduinoISP.png)
 
 Затем редактируем файл boards.txt. Нужно установить скорость 19200 и загрузчик optiboot.
+
 C:\Program Files (x86)\Arduino\hardware\arduino\avr\boards.txt
 ```bash
 ## Arduino Pro or Pro Mini (3.3V, 8 MHz) w/ ATmega328
@@ -51,12 +52,12 @@ UNO -> Pro Mini
 Если сразу прошивать скетч, то выдает ошибку контрольной суммы.
 
 
-# Arduino UNO в качастве USB-UART
+## Arduino UNO в качастве USB-UART
 
   UNO 	-> Pro Mini
 - +5v   -> Vcc
 - GND   -> GND
 - 0(RX) -> TX0
 - 1(TX) -> RXI
-- Rst - | Перемычка 
+- RST - | Перемычка 
 - GND - |

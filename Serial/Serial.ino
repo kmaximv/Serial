@@ -198,7 +198,7 @@ uint8_t crc8(uint8_t crc, uint8_t data, uint8_t polynomial)
 {
  crc ^= data;
 
- for (int i = 0; i < 8; ++i)
+ for (size_t i = 0; i < 8; ++i)
     crc = (crc << 1) ^ ((crc & 0x80) ? polynomial : 0);
 
  return crc;
@@ -212,7 +212,7 @@ bool ParseCommand() {
   }
 
   uint8_t z = 0;
-  for ( int i = 0; i < sp_dataString.length(); i++ ) {
+  for ( size_t i = 0; i < sp_dataString.length(); i++ ) {
     if (sp_dataString[i] != delimiter ) {
       parseArray[z] += sp_dataString[i];
     } else if (sp_dataString[i] == delimiter ) {
@@ -220,17 +220,50 @@ bool ParseCommand() {
     } 
     if (z > 4) {
       Serial.println("Error Parse Command");
-      for ( int a = 0; a < 3; a++ ) {
+      for ( size_t a = 0; a < 3; a++ ) {
         parseArray[a] = "";
       }
       return false;
     }
   }
 
-  for ( int p = 0; p < 3; p++ ) {
+  for ( size_t p = 0; p < 3; p++ ) {
     Serial.print(parseArray[p]);   Serial.print(" ");
   }
   Serial.println("<--");
+
+
+  if (parseArray[1] == "in") {
+    pinMode(parseArray[2].toInt(), INPUT);
+    Serial.println("in");
+  }
+  if (parseArray[1] == "out") {
+    pinMode(parseArray[2].toInt(), OUTPUT);
+    Serial.println("out");
+  }
+
+  if (parseArray[1] == "readd") {
+    int digitalState = digitalRead(parseArray[2].toInt());
+    Serial.println("readd");
+  }
+  if (parseArray[1] == "reada") {
+    int analogState = analogRead(parseArray[2].toInt());
+    Serial.println("reada");
+  }
+
+  if (parseArray[1] == "on") {
+    digitalWrite(parseArray[2].toInt(), HIGH);
+    Serial.println("on");
+  }
+  if (parseArray[1] == "off") {
+    digitalWrite(parseArray[2].toInt(), LOW);
+    Serial.println("off");
+  }
+
+  if (parseArray[1] == "p") {
+    analogWrite(parseArray[2].toInt(), parseArray[3].toInt());
+    Serial.println("p");
+  }
 
 
   if(sp_dataString == "p5on") {
@@ -242,7 +275,7 @@ bool ParseCommand() {
     PWMOff(5);      
   }
 
-  for ( uint8_t s = 0; s < 3; s++ ) {
+  for ( size_t s = 0; s < 4; s++ ) {
     parseArray[s] = "";
   }
 
@@ -300,18 +333,14 @@ void PWMOff(int pin_num) {
 
 void FadeSwitch (int pin, int x, int y, bool z)
 {
-  if (z)
-  {
-    for (int i = x; i <= y; i++)
-    {
+  if (z) {
+    for (size_t i = x; i <= y; i++) {
       analogWrite(pin, i);
       delay(15);
     }    
   }
-  else
-  {
-    for (int i = x; i >= y; i--)
-    {
+  else {
+    for (size_t i = x; i >= y; i--) {
       analogWrite(pin, i);
       delay(15);
     }   

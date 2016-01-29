@@ -3,13 +3,14 @@
 String sp_startMarker;           // Переменная, содержащая маркер начала пакета
 String sp_stopMarker;            // Переменная, содержащая маркер конца пакета
 String sp_dataString;            // Здесь будут храниться принимаемые данные
+uint8_t sp_data[10];             
 int sp_startMarkerStatus;        // Флаг состояния маркера начала пакета
 int sp_stopMarkerStatus;         // Флаг состояния маркера конца пакета
 uint8_t sp_dataLength;               // Флаг состояния принимаемых данных
 boolean sp_packetAvailable;      // Флаг завершения приема пакета
 
 
-String parseArray[3];            //Распарсенный массив принимаемых данных
+String parseArray[4];            //Распарсенный массив принимаемых данных
 
 char delimiter = '&';
 
@@ -162,9 +163,53 @@ void loop()
 
 //<bspm>p5on<espm>
 
+bool crcCheck() {
+  sp_dataString.getBytes(sp_data,10);
+  uint8_t crc = crc8_ccitt_block(sp_data, sizeof(sp_data) - 1);
+  uint8_t crcControl = sp_data[0];
+  Serial.print("CRC:        ");    Serial.println(crc);    Serial.print("crcControl: ");    Serial.println(crcControl);
+  if (crc == crcControl) {
+    Serial.println("CRC OK!");
+    return true;
+  } else {
+    Serial.println("CRC Error!");
+    return false;
+  }
+}
+
+
+/* Вспомогательная функция вычисления CRC для массива байтов */
+uint8_t crc8_ccitt_block(const uint8_t *data, size_t length)
+{
+ uint8_t crc = 0;
+
+ for (size_t i = 1; i < length; ++i) // i = 1 пропускаем первый байт, в котором хранится присланная CRC сумма
+    crc = crc8_ccitt(crc, data[i]);
+
+ return crc;
+}
+
+uint8_t crc8_ccitt(uint8_t crc, uint8_t data)
+{
+ return crc8(crc, data, 0x07);
+}
+
+uint8_t crc8(uint8_t crc, uint8_t data, uint8_t polynomial)
+{
+ crc ^= data;
+
+ for (int i = 0; i < 8; ++i)
+    crc = (crc << 1) ^ ((crc & 0x80) ? polynomial : 0);
+
+ return crc;
+}
+
+
 bool ParseCommand() {
 
-  //uint8_t crc = crc8_ccitt_block(sp_dataString, sp_dataString.length());
+  if (!crcCheck()) {
+    return false;
+  }
 
   uint8_t z = 0;
   for ( int i = 0; i < sp_dataString.length(); i++ ) {
@@ -271,35 +316,4 @@ void FadeSwitch (int pin, int x, int y, bool z)
       delay(15);
     }   
   }  
-}
-
-
-
-/* Вычисляем CRC для первых трёх байт буфера */
-// uint8_t crc = crc8_ccitt_block(packet, sizeof(packet) - 1);
-
-/* Вспомогательная функция вычисления CRC для массива байтов */
-uint8_t crc8_ccitt_block(const uint8_t *data, size_t length)
-{
- uint8_t crc = 0;
-
- for (size_t i = 0; i < length; ++i)
-    crc = crc8_ccitt(crc, data[i]);
-
- return crc;
-}
-
-uint8_t crc8_ccitt(uint8_t crc, uint8_t data)
-{
- return crc8(crc, data, 0x07);
-}
-
-uint8_t crc8(uint8_t crc, uint8_t data, uint8_t polynomial)
-{
- crc ^= data;
-
- for (int i = 0; i < 8; ++i)
-    crc = (crc << 1) ^ ((crc & 0x80) ? polynomial : 0);
-
- return crc;
 }

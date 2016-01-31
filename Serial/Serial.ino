@@ -3,8 +3,8 @@
 
 #define OFF 0
 #define MIN 10
-#define MID 125
-#define MAX 255                 
+#define MID 60
+#define MAX 180                 
 #define UP true 
 #define DOWN false
 
@@ -251,7 +251,7 @@ bool ParseCommand() {
     Serial.print("Set HIGH on pin: "); Serial.println(parseArray[1]);
     #endif
   }
-  
+
   if (parseArray[0] == "off") {
     digitalWrite(parseArray[1].toInt(), LOW);
     pwmState[parseArray[1].toInt()] = OFF;
@@ -294,20 +294,23 @@ void PWMChange(int pin_num, int bright){
 }
 
 
-void FadeSwitch (int pin, int x, int y, bool z)
-{
-  if (z) {
-    for (size_t i = x; i <= y; i++) {
-      analogWrite(pin, i);
-      delay(15);
-    }    
+void FadeSwitch (int pin, int x, int y, bool z){
+  if (z){
+    x = 270 + x;
+    y = map(y, 0, 180, 180, 0);
+    y = 450 - y;
+  } else {
+    x = map(x, 0, 180, 180, 0);
+    x = 90 + x;
+    y = 270 - y;
   }
-  else {
-    for (int i = x; i >= y; i--) {
-      analogWrite(pin, i);
-      delay(15);
-    }   
-  }  
+
+  for(int i = x; i < y; i++){
+    float rad = DEG_TO_RAD * i;    //convert 0-360 angle to radian (needed for sin function)
+    int sinOut = constrain((sin(rad) * 128) + 128, 0, 255); //calculate sin of angle as number between 0 and 255
+    analogWrite(pin, sinOut);
+    delay(30);
+  }
 }
 
 

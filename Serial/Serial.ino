@@ -1,4 +1,13 @@
-//#define DEBUG
+#define DEBUG
+//#define CRC_ENABLE
+
+#define OFF 0
+#define MIN 10
+#define MID 125
+#define MAX 255                 
+#define UP true 
+#define DOWN false
+
 
 String sp_startMarker;           // Переменная, содержащая маркер начала пакета
 String sp_stopMarker;            // Переменная, содержащая маркер конца пакета
@@ -15,14 +24,6 @@ String parseArray[4];            //Распарсенный массив при�
 char delimiter = '&';
 
 int pwmState[13];
-
-int maxBright = 255;               // Больше число, больше яркость при максимальной подсветке
-int midBright = 125;              // Больше число, больше яркость при средней подсветке
-int moonBright = 30;              // Больше число, больше яркость при минимальной подсветке
-bool up = true;                      
-bool down = false;
-
-
 
 void sp_SetUp(){
   sp_startMarker = "<bspm>";     // Так будет выглядеть маркер начала пакета
@@ -179,9 +180,11 @@ uint8_t crc8(uint8_t crc, uint8_t data, uint8_t polynomial){
 
 bool ParseCommand() {
 
+  #ifdef CRC_ENABLE
   if (!crcCheck()) {
     return false;
   }
+  #endif
 
   sp_Send(sp_dataString);
 
@@ -213,46 +216,63 @@ bool ParseCommand() {
   if (parseArray[0] == "in") {
     pinMode(parseArray[1].toInt(), INPUT);
     #ifdef DEBUG
-    Serial.println("in");
+    Serial.print("Set INPUT on pin: "); Serial.println(parseArray[1]);
     #endif
   }
+
   if (parseArray[0] == "out") {
     pinMode(parseArray[1].toInt(), OUTPUT);
+    pwmState[parseArray[1].toInt()] = OFF;
     #ifdef DEBUG
-    Serial.println("out");
+    Serial.print("Set OUTPUT on pin: "); Serial.println(parseArray[1]);
     #endif
   }
 
   if (parseArray[0] == "readd") {
     int digitalState = digitalRead(parseArray[1].toInt());
     #ifdef DEBUG
-    Serial.println("readd");
+    Serial.print("Read digital pin: "); Serial.println(parseArray[1]);
+    Serial.print("State: "); Serial.println(digitalState);
     #endif
   }
+
   if (parseArray[0] == "reada") {
     int analogState = analogRead(parseArray[1].toInt());
     #ifdef DEBUG
-    Serial.println("reada");
+    Serial.print("Read analog pin: "); Serial.println(parseArray[1]);
+    Serial.print("State: "); Serial.println(analogState);
     #endif
   }
 
   if (parseArray[0] == "on") {
     digitalWrite(parseArray[1].toInt(), HIGH);
+    pwmState[parseArray[1].toInt()] = MAX;
     #ifdef DEBUG
-    Serial.println("on");
+    Serial.print("Set HIGH on pin: "); Serial.println(parseArray[1]);
     #endif
   }
+  
   if (parseArray[0] == "off") {
     digitalWrite(parseArray[1].toInt(), LOW);
+    pwmState[parseArray[1].toInt()] = OFF;
     #ifdef DEBUG
-    Serial.println("off");
+    Serial.print("Set LOW on pin: "); Serial.println(parseArray[1]);
     #endif
   }
 
   if (parseArray[0] == "p") {
     analogWrite(parseArray[1].toInt(), parseArray[2].toInt());
+    pwmState[parseArray[1].toInt()] = parseArray[2].toInt();
     #ifdef DEBUG
-    Serial.println("p");
+    Serial.print("Set PWM on pin: "); Serial.println(parseArray[1]);
+    Serial.print("PWM State: "); Serial.println(parseArray[2]);
+    #endif
+  }
+
+  if (parseArray[0] == "pc") {
+    PWMChange(parseArray[1].toInt(), parseArray[2].toInt());
+    #ifdef DEBUG
+    Serial.print("Set PWM Diff in pin: "); Serial.println(parseArray[1]);
     #endif
   }
 
@@ -264,53 +284,13 @@ bool ParseCommand() {
 }
 
 
-void PWMOn(int pin_num) {
-
-  if (pwmState[pin_num] == 2){
-    #ifdef DEBUG
-    Serial.println("Mid to Max");
-    #endif
-    FadeSwitch(pin_num, midBright, maxBright, up);
-  } else if (pwmState[pin_num] == 3){
-    #ifdef DEBUG
-    Serial.println("Min to Max");
-    #endif
-    FadeSwitch(pin_num, moonBright, maxBright, up);
+void PWMChange(int pin_num, int bright){
+  if (pwmState[pin_num] < bright){
+    FadeSwitch(pin_num, pwmState[pin_num], bright, UP);
   } else {
-    #ifdef DEBUG
-    Serial.println("On");
-    #endif
-    FadeSwitch(pin_num, 0, maxBright, up);
-  }
-
-  pwmState[pin_num] = 1;
-}
-
-
-void PWMMid(int pin_num){
-  #ifdef DEBUG
-  Serial.println("Mid");
-  #endif
-  FadeSwitch(pin_num, maxBright, midBright, down);
-  pwmState[pin_num] = 2;
-}
-
-
-void PWMMin(int pin_num) {
-  #ifdef DEBUG
-  Serial.println("Min");
-  #endif
-  FadeSwitch(pin_num, midBright, moonBright, down);
-  pwmState[pin_num] = 3;
-}
-
-
-void PWMOff(int pin_num) {
-  #ifdef DEBUG
-  Serial.println("Off");
-  #endif
-  FadeSwitch(pin_num, moonBright, 0, down);
-  pwmState[pin_num] = 0;
+    FadeSwitch(pin_num, pwmState[pin_num], bright, DOWN);
+  } 
+  pwmState[pin_num] = bright;
 }
 
 
@@ -323,7 +303,7 @@ void FadeSwitch (int pin, int x, int y, bool z)
     }    
   }
   else {
-    for (size_t i = x; i >= y; i--) {
+    for (int i = x; i >= y; i--) {
       analogWrite(pin, i);
       delay(15);
     }   

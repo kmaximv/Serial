@@ -1,6 +1,23 @@
+/* Команды управления
+
+<beg>6!out&03<end>
+<beg>5!in&03<end>
+<beg>5!on&03<end>
+<beg>6!off&03<end>
+<beg>5!rd&03<end>
+
+<beg>8!p&03&100<end>
+
+<beg>4!ra&3<end>
+*/
+
 #define DEBUG
 //#define CRC_ENABLE
 
+
+#define DIGITAL_PINS 14   //Кол-во цифровых входов/выходов
+#define PARSE_CELLS 4     //Кол-во ячеек в массиве принимаемых данных
+#define DATA_LENGTH 10    //Максимальный размер пакета данных без маркеров и CRC
 #define OFF 0
 #define MIN 10
 #define MID 60
@@ -9,37 +26,34 @@
 #define DOWN false
 
 
-String sp_startMarker;           // Переменная, содержащая маркер начала пакета
-String sp_stopMarker;            // Переменная, содержащая маркер конца пакета
+String sp_startMarker = "<beg>";           // Переменная, содержащая маркер начала пакета
+String sp_stopMarker  = "<end>";            // Переменная, содержащая маркер конца пакета
 String sp_dataString;            // Здесь будут храниться принимаемые данные
-uint8_t sp_data[10];             
+uint8_t sp_data[DATA_LENGTH];             
 int sp_startMarkerStatus;        // Флаг состояния маркера начала пакета
 int sp_stopMarkerStatus;         // Флаг состояния маркера конца пакета
 uint8_t sp_dataLength;               // Флаг состояния принимаемых данных
 boolean sp_packetAvailable;      // Флаг завершения приема пакета
 uint8_t crc_byte;
 
-String parseArray[4];            //Распарсенный массив принимаемых данных
+String parseArray[PARSE_CELLS];            //Распарсенный массив принимаемых данных
 
-char delimiter = '&';
+char delimiter = '&';             // Разделительный символ в пакете данных
 
-int pwmState[13];
+//На каких пинах поддерживается ШИМ ATmega328 3, 5, 6, 9, 10, 11
+bool PWMOn[DIGITAL_PINS] = {false,false,false,true,false,true,true,false,false,true,true,true,false,false}; 
 
-void sp_SetUp(){
-  sp_startMarker = "<bspm>";     // Так будет выглядеть маркер начала пакета
-  sp_stopMarker = "<espm>";      // Так будет выглядеть маркер конца пакета
-  sp_dataString.reserve(64);     // Резервируем место под прием строки данных
-  sp_ResetAll();                 // Полный сброс протокола
-}
+int statePins[DIGITAL_PINS];
+int cycleStart[DIGITAL_PINS];
+int cycleNow[DIGITAL_PINS];
+int cycleEnd[DIGITAL_PINS];
+unsigned long timers[DIGITAL_PINS];
+unsigned long delays[DIGITAL_PINS] = {30,30,30,30,30,30,30,30,30,30,30,30,30,30};
 
-
-void sp_ResetAll(){
-  sp_dataString = "";           // Обнуляем буфер приема данных
-  sp_Reset();                   // Частичный сброс протокола
-}
 
 
 void sp_Reset(){
+  sp_dataString = "";           // Обнуляем буфер приема данных
   sp_startMarkerStatus = 0;     // Сброс флага маркера начала пакета
   sp_stopMarkerStatus = 0;      // Сброс флага маркера конца пакета
   sp_dataLength = 0;            // Сброс флага принимаемых данных
@@ -60,7 +74,7 @@ void serialEvent(){
   sp_Read();                         // Вызов «читалки» принятых данных
   if(sp_packetAvailable){             // Если после вызова «читалки» пакет полностью принят
     ParseCommand();                   // Обрабатываем принятую информацию
-    sp_ResetAll();                    // Полный сброс протокола.
+    sp_Reset();                    // Полный сброс протокола.
   }
 }
 
@@ -73,19 +87,20 @@ void sp_Read()
       if(sp_startMarker[sp_startMarkerStatus] == bufferChar) {        // Если очередной байт из буфера совпадает с очередным байтом в маркере
        sp_startMarkerStatus++;                                        // Увеличиваем счетчик совпавших байт маркера
       } else {
-       sp_ResetAll();                                                 // Если байты не совпали, то это не маркер. Нас нае****, расходимся. 
+       sp_Reset();                                                 // Если байты не совпали, то это не маркер. Нас нае****, расходимся. 
       }
     } else {
      // Стартовый маркер прочитан полностью
       if(sp_dataLength <= 0) {                                        // Если длинна пакета не установлена
         sp_dataLength = (int)bufferChar - 48;                          // Значит этот байт содержит длину пакета данных
         #ifdef DEBUG
-        Serial.print("sp_dataLength: ");  Serial.println(sp_dataLength);
+        Serial.println();   Serial.println();
+        Serial.print(F("sp_dataLength: "));  Serial.println(sp_dataLength);
         #endif
       } else if (crc_byte <= 0) { 
         crc_byte = bufferChar;                                        // Значит этот байт содержит контрольную сумму пакета данных
         #ifdef DEBUG
-        Serial.print("crc_byte: ");  Serial.println(crc_byte);
+        Serial.print(F("crc_byte: "));  Serial.println(crc_byte);
         #endif
       } else {                                                        // Если прочитанная из буфера длинна пакета больше нуля
         if(sp_dataLength > sp_dataString.length()) {                  // Если длинна пакета данных меньше той, которая должна быть
@@ -96,13 +111,13 @@ void sp_Read()
               sp_stopMarkerStatus++;                                  // Увеличиваем счетчик удачно найденных байт маркера
               if(sp_stopMarkerStatus == sp_stopMarker.length()) {
                 #ifdef DEBUG
-                Serial.println("Packet recieve!");
+                Serial.println(F("Packet recieve!"));
                 Serial.println(sp_dataString);
                 #endif
                 sp_packetAvailable = true;                            // и устанавливаем флаг готовности пакета
               }
             } else {
-              sp_ResetAll();                                          // Иначе это не маркер, а х.з. что. Полный ресет.
+              sp_Reset();                                          // Иначе это не маркер, а х.з. что. Полный ресет.
             }
           }
         }
@@ -113,14 +128,14 @@ void sp_Read()
 
 
 void printByte(uint8_t *data) {
-  Serial.println("printByte ==================");
+  Serial.println(F("printByte =================="));
   uint8_t length = sp_dataLength;
-  Serial.print("length: "); Serial.println(length);
+  Serial.print(F("length: ")); Serial.println(length);
   for (uint8_t i = 0;  i < length; ++i){
-    Serial.print(data[i], DEC); Serial.print(" ");
+    Serial.print(data[i], DEC); Serial.print(F(" "));
   }
   Serial.println();
-  Serial.println("Done =======================");
+  Serial.println(F("Done ======================="));
 }
 
 
@@ -130,21 +145,21 @@ bool crcCheck() {
   printByte(sp_data);
   #endif
   uint8_t crc = crc8_ccitt_block(sp_data, sp_dataLength);
-  for (size_t i = 0;  i < 10; ++i){
+  for (size_t i = 0;  i < DATA_LENGTH; ++i){
     sp_data[i] = 0;
   }
   uint8_t crcControl = crc_byte;
   #ifdef DEBUG
-  Serial.print("CRC:        ");    Serial.println(crc);    Serial.print("crcControl: ");    Serial.println(crcControl);
+  Serial.print(F("CRC:        "));    Serial.println(crc);    Serial.print(F("crcControl: "));    Serial.println(crcControl);
   #endif
   if (crc == crcControl) {
     #ifdef DEBUG
-    Serial.println("CRC OK!");
+    Serial.println(F("CRC OK!"));
     #endif
     return true;
   } else {
     #ifdef DEBUG
-    Serial.println("CRC Error!");
+    Serial.println(F("CRC Error!"));
     #endif
     return false;
   }
@@ -157,7 +172,7 @@ uint8_t crc8_ccitt_block(uint8_t *data, size_t length){
   for (size_t i = 0; i < length; ++i) {
     crc = crc8_ccitt(crc, data[i]);
     #ifdef DEBUG
-    Serial.print(crc, DEC); Serial.print(" ");
+    Serial.print(crc, DEC); Serial.print(F(" "));
     #endif
   }
   return crc;
@@ -195,9 +210,9 @@ bool ParseCommand() {
     } else if (sp_dataString[i] == delimiter ) {
       z++;
     } 
-    if (z > 4) {
+    if (z > PARSE_CELLS) {
       #ifdef DEBUG
-      Serial.println("Error Parse Command");
+      Serial.println(F("Error Parse Command"));
       #endif
       for ( size_t a = 0; a < 3; a++ ) {
         parseArray[a] = "";
@@ -208,89 +223,103 @@ bool ParseCommand() {
 
   #ifdef DEBUG
   for ( size_t p = 0; p < 3; p++ ) {
-    Serial.print(parseArray[p]);   Serial.print(" ");
+    Serial.print(parseArray[p]);   Serial.print(F(" "));
   }
-  Serial.println("<--");
+  Serial.println(F("<--"));
   #endif
 
   if (parseArray[0] == "in") {
     pinMode(parseArray[1].toInt(), INPUT);
     #ifdef DEBUG
-    Serial.print("Set INPUT on pin: "); Serial.println(parseArray[1]);
+    Serial.print(F("Set INPUT on pin: ")); Serial.println(parseArray[1]);
     #endif
   }
 
   if (parseArray[0] == "out") {
     pinMode(parseArray[1].toInt(), OUTPUT);
-    pwmState[parseArray[1].toInt()] = OFF;
+    statePins[parseArray[1].toInt()] = OFF;
     #ifdef DEBUG
-    Serial.print("Set OUTPUT on pin: "); Serial.println(parseArray[1]);
+    Serial.print(F("Set OUTPUT on pin: ")); Serial.println(parseArray[1]);
     #endif
   }
 
-  if (parseArray[0] == "readd") {
+  if (parseArray[0] == "rd") {
     int digitalState = digitalRead(parseArray[1].toInt());
+    sp_dataString += delimiter;
+    sp_dataString += digitalState;
+    sp_Send(sp_dataString); 
     #ifdef DEBUG
-    Serial.print("Read digital pin: "); Serial.println(parseArray[1]);
-    Serial.print("State: "); Serial.println(digitalState);
+    Serial.print(F("Read digital pin: ")); Serial.println(parseArray[1]);
+    Serial.print(F("State: ")); Serial.println(digitalState);
     #endif
   }
 
-  if (parseArray[0] == "reada") {
+  if (parseArray[0] == "ra") {
     int analogState = analogRead(parseArray[1].toInt());
+    sp_dataString += delimiter;
+    sp_dataString += analogState;
+    sp_Send(sp_dataString); 
     #ifdef DEBUG
-    Serial.print("Read analog pin: "); Serial.println(parseArray[1]);
-    Serial.print("State: "); Serial.println(analogState);
+    Serial.print(F("Read analog pin: ")); Serial.println(parseArray[1]);
+    Serial.print(F("State: ")); Serial.println(analogState);
     #endif
   }
 
   if (parseArray[0] == "on") {
     digitalWrite(parseArray[1].toInt(), HIGH);
-    pwmState[parseArray[1].toInt()] = MAX;
+    statePins[parseArray[1].toInt()] = MAX;
     #ifdef DEBUG
-    Serial.print("Set HIGH on pin: "); Serial.println(parseArray[1]);
+    Serial.print(F("Set HIGH on pin: ")); Serial.println(parseArray[1]);
     #endif
   }
 
   if (parseArray[0] == "off") {
     digitalWrite(parseArray[1].toInt(), LOW);
-    pwmState[parseArray[1].toInt()] = OFF;
+    statePins[parseArray[1].toInt()] = OFF;
     #ifdef DEBUG
-    Serial.print("Set LOW on pin: "); Serial.println(parseArray[1]);
+    Serial.print(F("Set LOW on pin: ")); Serial.println(parseArray[1]);
     #endif
   }
 
   if (parseArray[0] == "p") {
-    analogWrite(parseArray[1].toInt(), parseArray[2].toInt());
-    pwmState[parseArray[1].toInt()] = parseArray[2].toInt();
     #ifdef DEBUG
-    Serial.print("Set PWM on pin: "); Serial.println(parseArray[1]);
-    Serial.print("PWM State: "); Serial.println(parseArray[2]);
+    Serial.print(F("Set PWM on pin: ")); Serial.println(parseArray[1]);
     #endif
-  }
-
-  if (parseArray[0] == "pc") {
     PWMChange(parseArray[1].toInt(), parseArray[2].toInt());
-    #ifdef DEBUG
-    Serial.print("Set PWM Diff in pin: "); Serial.println(parseArray[1]);
-    #endif
   }
 
-  for ( size_t s = 0; s < 4; s++ ) {
+  for ( size_t s = 0; s < PARSE_CELLS; s++ ) {
     parseArray[s] = "";
   }
   
-  sp_ResetAll();
+  sp_Reset();
 }
 
 
-void PWMChange(int pin_num, int bright){
-  if (pwmState[pin_num] < bright){
-    FadeSwitch(pin_num, pwmState[pin_num], bright, UP);
+void PWMChange(int pin, int bright){
+  if (PWMOn[pin] == true){
+    if (statePins[pin] < bright){
+      FadeSwitch(pin, statePins[pin], bright, UP);
+    } else {
+      FadeSwitch(pin, statePins[pin], bright, DOWN);
+    } 
+    statePins[pin] = bright;
   } else {
-    FadeSwitch(pin_num, pwmState[pin_num], bright, DOWN);
-  } 
-  pwmState[pin_num] = bright;
+    #ifdef DEBUG
+    Serial.print(F("PWM not support on pin: ")); Serial.println(pin);
+    #endif
+  }
+}
+
+
+void FadeSwitchDelay(int pin){
+  if (millis() - timers[pin] >= delays[pin] && cycleNow[pin] != cycleEnd[pin]){
+    timers[pin] = millis();
+    float rad = DEG_TO_RAD * cycleNow[pin];    //convert 0-360 angle to radian (needed for sin function)
+    int sinOut = constrain((sin(rad) * 128) + 128, 0, 255); //calculate sin of angle as number between 0 and 255
+    analogWrite(pin, sinOut);
+    cycleNow[pin] = cycleNow[pin] + 1;
+  }
 }
 
 
@@ -304,27 +333,34 @@ void FadeSwitch (int pin, int x, int y, bool z){
     x = 90 + x;
     y = 270 - y;
   }
-
-  for(int i = x; i < y; i++){
-    float rad = DEG_TO_RAD * i;    //convert 0-360 angle to radian (needed for sin function)
-    int sinOut = constrain((sin(rad) * 128) + 128, 0, 255); //calculate sin of angle as number between 0 and 255
-    analogWrite(pin, sinOut);
-    delay(30);
-  }
+  cycleStart[pin] = x;
+  cycleNow[pin] = cycleStart[pin];
+  cycleEnd[pin] = y;
 }
 
+
+void FadeSwitchLoop(){
+  for ( size_t i = 0; i < DIGITAL_PINS; i++ ){
+    if (PWMOn[i] == true){
+      FadeSwitchDelay(i);
+    }
+  }
+}
 
 void setup() 
 {
     //TCCR0B = TCCR0B & 0b11111000 | 0x02; // Устанавливаем ШИМ на 62.5 кГц (пины 5,6)
     //TCCR1B = TCCR1B & 0b11111000 | 0x02; // Устанавливаем ШИМ на 62.5 кГц (пины 9,10)
 
-  Serial.begin(9600);                               // Инициализируем последовательный интерфейс
-  sp_SetUp();                                       // Инициализируем протокол.
+  sp_dataString.reserve(32);     // Резервируем место под прием строки данных
+  sp_Reset();                    // Полный сброс протокола
+
+  Serial.begin(9600);            // Инициализируем последовательный интерфейс
 }
 
 
 void loop() 
 {
+  FadeSwitchLoop();
   serialEvent();
 }

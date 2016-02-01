@@ -68,16 +68,26 @@ UNO -> Pro Mini
 ####Digital Pins
 
 ```bash
-<bspm>7outd&12<espm>		//pinMode(12, OUTPUT);
-<bspm>6ind&12<espm>			//pinMode(12, INPUT);
-<bspm>8readd&12<espm>		//digitalRead(12);
-<bspm>5on&12<espm>			//digitalWrite(12, HIGH);
-<bspm>6off&12<espm>			//digitalWrite(12, LOW);
-<bspm>9pw&12&60<espm>		//analogWrite(12, 60);    (PWM)
+<beg>6!out&03<end>			//pinMode(3, OUTPUT);
+<beg>5!in&03<end>			//pinMode(3, INPUT);
+<beg>5!rd&03<end>			//digitalRead(3);
+<beg>5!on&03<end>			//digitalWrite(3, HIGH);
+<beg>6!off&03<end>			//digitalWrite(3, LOW);
+<beg>8!p&03&100<end>		//analogWrite(3, 70);    (PWM)
 ```
 
 ####Analog Pins
 
 ```bash
-<bspm>8reada&12<espm>		//analogRead(12);
+<beg>4!ra&3<end>			//analogRead(3);
 ```
+
+
+
+
+
+
+
+
+
+

@@ -81,13 +81,3 @@ UNO -> Pro Mini
 ```bash
 <beg>4!ra&3<end>			//analogRead(3);
 ```
-
-
-
-
-
-
-
-
-
-

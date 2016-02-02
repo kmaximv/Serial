@@ -1,18 +1,18 @@
 /* Команды управления
 
-<beg>6!out&03<end>
-<beg>5!in&03<end>
-<beg>5!on&03<end>
-<beg>6!off&03<end>
-<beg>5!rd&03<end>
+<beg>6љout&03<end>
+<beg>4Sin&3<end>
+<beg>5Son&03<end>
+<beg>6Eoff&03<end>
+<beg>49rd&3<end>
 
-<beg>8!p&03&100<end>
+<beg>8дp&03&100<end>
 
-<beg>4!ra&3<end>
+<beg>4щra&3<end>
 */
 
 #define DEBUG
-//#define CRC_ENABLE
+#define CRC_ENABLE
 
 
 #define DIGITAL_PINS 14   //Кол-во цифровых входов/выходов
@@ -29,7 +29,6 @@
 String sp_startMarker = "<beg>";           // Переменная, содержащая маркер начала пакета
 String sp_stopMarker  = "<end>";            // Переменная, содержащая маркер конца пакета
 String sp_dataString;            // Здесь будут храниться принимаемые данные
-uint8_t sp_data[DATA_LENGTH];             
 int sp_startMarkerStatus;        // Флаг состояния маркера начала пакета
 int sp_stopMarkerStatus;         // Флаг состояния маркера конца пакета
 uint8_t sp_dataLength;               // Флаг состояния принимаемых данных
@@ -140,19 +139,11 @@ void printByte(uint8_t *data) {
 
 
 bool crcCheck() {
-  sp_dataString.getBytes(sp_data, sp_dataLength + 1); // + 1 для дополнительного символа окончания строки
+  uint8_t crc = crcCalc(sp_dataString);
   #ifdef DEBUG
-  printByte(sp_data);
+  Serial.print(F("CRC:        "));    Serial.println(crc);    Serial.print(F("crcControl: "));    Serial.println(crc_byte);
   #endif
-  uint8_t crc = crc8_ccitt_block(sp_data, sp_dataLength);
-  for (size_t i = 0;  i < DATA_LENGTH; ++i){
-    sp_data[i] = 0;
-  }
-  uint8_t crcControl = crc_byte;
-  #ifdef DEBUG
-  Serial.print(F("CRC:        "));    Serial.println(crc);    Serial.print(F("crcControl: "));    Serial.println(crcControl);
-  #endif
-  if (crc == crcControl) {
+  if (crc == crc_byte) {
     #ifdef DEBUG
     Serial.println(F("CRC OK!"));
     #endif
@@ -166,8 +157,17 @@ bool crcCheck() {
 }
 
 
-/* Вспомогательная функция вычисления CRC для массива байтов */
-uint8_t crc8_ccitt_block(uint8_t *data, size_t length){
+/* Вспомогательная функция вычисления CRC для строки */
+uint8_t crcCalc(String dataStr){
+
+  uint8_t data[DATA_LENGTH];
+  size_t length = dataStr.length();
+  dataStr.getBytes(data, length + 1); // + 1 для дополнительного символа окончания строки
+
+  #ifdef DEBUG
+  printByte(data);
+  #endif
+
   uint8_t crc = 0;
   for (size_t i = 0; i < length; ++i) {
     crc = crc8_ccitt(crc, data[i]);
